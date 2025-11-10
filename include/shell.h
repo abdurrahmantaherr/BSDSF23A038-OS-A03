@@ -16,7 +16,7 @@
 #define ARGLEN 30
 #define PROMPT "FCIT> "
 #define HISTORY_SIZE 100
-#define MAX_JOBS 20    // new for Feature 6
+#define MAX_JOBS 20
 
 // Function prototypes
 char* read_cmd(char* prompt, FILE* fp);
@@ -30,10 +30,18 @@ void print_history(void);
 char *get_history_command(int index);
 void free_history(void);
 
-// Jobs (Feature 6)
+// Jobs
 void add_job(pid_t pid, const char *cmd);
 void check_jobs(void);
 void print_jobs(void);
+
+// Signal Handling (Feature 7)
+void setup_signal_handlers(void);
+void sigint_handler(int sig);
+void sigtstp_handler(int sig);
+
+// Global variable for foreground process
+extern pid_t fg_pid;
 
 #endif
 

@@ -1,8 +1,12 @@
 #include "shell.h"
 
 int main() {
+    setup_signal_handlers();  // Feature 7
+
     char* cmdline;
     char** arglist;
+
+    
 
     while ((cmdline = read_cmd(PROMPT, stdin)) != NULL) {
 

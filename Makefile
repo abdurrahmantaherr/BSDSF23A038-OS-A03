@@ -1,6 +1,7 @@
 CC = gcc
 CFLAGS = -Iinclude -Wall -g
-SRC = src/main.c src/shell.c src/execute.c
+SRC = src/main.c src/shell.c src/execute.c src/signals.c
+
 OBJ = $(SRC:.c=.o)
 BIN = bin/myshell
 

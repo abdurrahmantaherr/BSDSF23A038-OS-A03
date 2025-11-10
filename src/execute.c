@@ -1,4 +1,6 @@
 #include "shell.h"
+#include <termios.h>
+
 
 typedef struct {
     pid_t pid;
@@ -8,6 +10,9 @@ typedef struct {
 
 static Job jobs[MAX_JOBS];
 static int job_count = 0;
+
+// Declare fg_pid (defined in signals.c)
+extern pid_t fg_pid;
 
 void add_job(pid_t pid, const char *cmd) {
     if (job_count < MAX_JOBS) {
@@ -55,6 +60,7 @@ int execute(char **arglist) {
             start = i + 1;
         }
     }
+
     execute_single(&arglist[start], 0);
     check_jobs();
     return 1;
@@ -71,21 +77,51 @@ int execute_single(char **arglist, int background) {
         arglist[i - 1] = NULL;
     }
 
-    pid_t pid = fork();
-    if (pid == 0) {
-        execvp(arglist[0], arglist);
-        perror("execvp");
-        exit(1);
-    } else if (pid > 0) {
-        if (background) {
-            printf("[Job %d] %d running in background: %s\n", job_count + 1, pid, arglist[0]);
-            add_job(pid, arglist[0]);
-        } else {
-            waitpid(pid, NULL, 0);
-        }
+pid_t pid = fork();
+
+if (pid == 0) {
+    // --- CHILD PROCESS ---
+    setpgid(0, 0); // new process group for this child
+    signal(SIGINT, SIG_DFL);
+    signal(SIGTSTP, SIG_DFL);
+
+    // Give terminal control to this process group
+    tcsetpgrp(STDIN_FILENO, getpid());
+
+    execvp(arglist[0], arglist);
+    perror("execvp");
+    exit(1);
+} 
+else if (pid > 0) {
+    // --- PARENT PROCESS (SHELL) ---
+    setpgid(pid, pid); // ensure child in new group
+
+    if (background) {
+        printf("[Job %d] %d running in background: %s\n", job_count + 1, pid, arglist[0]);
+        add_job(pid, arglist[0]);
     } else {
-        perror("fork");
+        fg_pid = pid;
+        // Give terminal to child process group
+        tcsetpgrp(STDIN_FILENO, pid);
+
+        int status;
+        waitpid(pid, &status, WUNTRACED);
+
+        // Return terminal control to shell
+        tcsetpgrp(STDIN_FILENO, getpid());
+
+        if (WIFSTOPPED(status)) {
+            printf("\nProcess %d suspended\n", pid);
+            add_job(pid, arglist[0]);
+        }
+
+        fg_pid = 0;
     }
+} 
+else {
+    perror("fork");
+}
+
     return 1;
 }
 
