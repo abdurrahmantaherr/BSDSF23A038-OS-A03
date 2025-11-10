@@ -1,133 +1,91 @@
 #include "shell.h"
 
+typedef struct {
+    pid_t pid;
+    char cmd[256];
+    int active;
+} Job;
+
+static Job jobs[MAX_JOBS];
+static int job_count = 0;
+
+void add_job(pid_t pid, const char *cmd) {
+    if (job_count < MAX_JOBS) {
+        jobs[job_count].pid = pid;
+        strncpy(jobs[job_count].cmd, cmd, 255);
+        jobs[job_count].cmd[255] = '\0';
+        jobs[job_count].active = 1;
+        job_count++;
+    }
+}
+
+void check_jobs(void) {
+    for (int i = 0; i < job_count; i++) {
+        if (jobs[i].active) {
+            int status;
+            pid_t result = waitpid(jobs[i].pid, &status, WNOHANG);
+            if (result > 0) {
+                jobs[i].active = 0;
+                printf("[Job %d] %d finished: %s\n", i + 1, jobs[i].pid, jobs[i].cmd);
+            }
+        }
+    }
+}
+
+void print_jobs(void) {
+    printf("\nActive background jobs:\n");
+    for (int i = 0; i < job_count; i++) {
+        if (jobs[i].active)
+            printf("[%d] PID: %d  CMD: %s\n", i + 1, jobs[i].pid, jobs[i].cmd);
+    }
+    printf("\n");
+}
+
+int execute_single(char **arglist, int background);
+
 int execute(char **arglist) {
-    if (arglist == NULL || arglist[0] == NULL)
-        return 0;
+    if (!arglist || !arglist[0]) return 0;
 
-    // Step 1: Detect pipe symbol
-    int pipe_index = -1;
+    // Split on ';' for chaining
+    int start = 0;
     for (int i = 0; arglist[i] != NULL; i++) {
-        if (strcmp(arglist[i], "|") == 0) {
-            pipe_index = i;
-            break;
+        if (strcmp(arglist[i], ";") == 0) {
+            arglist[i] = NULL;
+            execute_single(&arglist[start], 0);
+            start = i + 1;
         }
     }
+    execute_single(&arglist[start], 0);
+    check_jobs();
+    return 1;
+}
 
-    // ---------------------------------------------------------------
-    // PIPE HANDLING
-    // ---------------------------------------------------------------
-    if (pipe_index != -1) {
-        arglist[pipe_index] = NULL; // split left/right commands
+int execute_single(char **arglist, int background) {
+    if (arglist == NULL || arglist[0] == NULL) return 0;
 
-        char *left[MAXARGS + 1];
-        char *right[MAXARGS + 1];
-        int i, j;
-
-        for (i = 0; i < pipe_index; i++)
-            left[i] = arglist[i];
-        left[i] = NULL;
-
-        for (j = 0; arglist[pipe_index + 1 + j] != NULL; j++)
-            right[j] = arglist[pipe_index + 1 + j];
-        right[j] = NULL;
-
-        int fd[2];
-        if (pipe(fd) == -1) {
-            perror("pipe");
-            return 1;
-        }
-
-        pid_t pid1 = fork();
-        if (pid1 == 0) {
-            dup2(fd[1], STDOUT_FILENO);
-            close(fd[0]);
-            close(fd[1]);
-            execvp(left[0], left);
-            perror("execvp");
-            exit(1);
-        }
-
-        pid_t pid2 = fork();
-        if (pid2 == 0) {
-            dup2(fd[0], STDIN_FILENO);
-            close(fd[1]);
-            close(fd[0]);
-            execvp(right[0], right);
-            perror("execvp");
-            exit(1);
-        }
-
-        close(fd[0]);
-        close(fd[1]);
-        waitpid(pid1, NULL, 0);
-        waitpid(pid2, NULL, 0);
-        return 1;
-    }
-
-    // ---------------------------------------------------------------
-    // REDIRECTION HANDLING (<, >)
-    // ---------------------------------------------------------------
-    int in_redirect = -1, out_redirect = -1;
-    char *infile = NULL, *outfile = NULL;
-
-    for (int i = 0; arglist[i] != NULL; i++) {
-        if (strcmp(arglist[i], "<") == 0) {
-            in_redirect = i;
-            infile = arglist[i + 1];
-        } else if (strcmp(arglist[i], ">") == 0) {
-            out_redirect = i;
-            outfile = arglist[i + 1];
-        }
+    // Check if '&' at end → background job
+    int i;
+    for (i = 0; arglist[i] != NULL; i++);
+    if (i > 0 && strcmp(arglist[i - 1], "&") == 0) {
+        background = 1;
+        arglist[i - 1] = NULL;
     }
 
     pid_t pid = fork();
-
     if (pid == 0) {
-        // Input redirection
-        if (in_redirect != -1 && infile != NULL) {
-            int fd = open(infile, O_RDONLY);
-            if (fd < 0) {
-                perror("open infile");
-                exit(1);
-            }
-            dup2(fd, STDIN_FILENO);
-            close(fd);
-        }
-
-        // Output redirection
-        if (out_redirect != -1 && outfile != NULL) {
-            int fd = open(outfile, O_CREAT | O_WRONLY | O_TRUNC, 0644);
-            if (fd < 0) {
-                perror("open outfile");
-                exit(1);
-            }
-            dup2(fd, STDOUT_FILENO);
-            close(fd);
-        }
-
-        // Remove redirection operators and filenames before exec
-        char *clean_args[MAXARGS + 1];
-        int j = 0;
-        for (int i = 0; arglist[i] != NULL; i++) {
-            if (strcmp(arglist[i], "<") == 0 || strcmp(arglist[i], ">") == 0) {
-                i++; // skip next token (filename)
-                continue;
-            }
-            clean_args[j++] = arglist[i];
-        }
-        clean_args[j] = NULL;
-
-        execvp(clean_args[0], clean_args);
+        execvp(arglist[0], arglist);
         perror("execvp");
         exit(1);
-    } 
-    else if (pid > 0) {
-        waitpid(pid, NULL, 0);
-    } 
-    else {
+    } else if (pid > 0) {
+        if (background) {
+            printf("[Job %d] %d running in background: %s\n", job_count + 1, pid, arglist[0]);
+            add_job(pid, arglist[0]);
+        } else {
+            waitpid(pid, NULL, 0);
+        }
+    } else {
         perror("fork");
     }
-
     return 1;
 }
 
