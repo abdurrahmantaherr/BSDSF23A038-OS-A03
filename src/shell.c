@@ -158,10 +158,11 @@ int handle_builtin(char **args) {
     }
 
     // jobs
-    else if (strcmp(args[0], "jobs") == 0) {
-        printf("Job control not yet implemented.\n");
-        return 1;
+   else if (strcmp(args[0], "jobs") == 0) {
+    print_jobs();
+    return 1;
     }
+
 
     // history
     else if (strcmp(args[0], "history") == 0) {
