@@ -8,12 +8,13 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include <fcntl.h>   // Added for open(), O_CREAT, etc.
 
 #define MAX_LEN 512
 #define MAXARGS 10
 #define ARGLEN 30
 #define PROMPT "FCIT> "
-#define HISTORY_SIZE 100   // Added for Feature 3
+#define HISTORY_SIZE 100
 
 // Function prototypes
 char* read_cmd(char* prompt, FILE* fp);
