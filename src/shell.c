@@ -1,8 +1,50 @@
 #include "shell.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+
+/* ------------------------------------------------------------------
+   Feature 3: Command History & !n
+------------------------------------------------------------------ */
+static char *history[HISTORY_SIZE];
+static int hist_count = 0;
+
+void add_history_local(const char *line) {
+    if (!line || strlen(line) == 0) return;
+
+    // Avoid storing duplicate consecutive commands
+    if (hist_count > 0 && strcmp(history[(hist_count - 1) % HISTORY_SIZE], line) == 0)
+        return;
+
+    if (hist_count < HISTORY_SIZE) {
+        history[hist_count] = strdup(line);
+    } else {
+        free(history[0]);
+        for (int i = 1; i < HISTORY_SIZE; i++)
+            history[i - 1] = history[i];
+        history[HISTORY_SIZE - 1] = strdup(line);
+    }
+    hist_count++;
+}
+
+void print_history(void) {
+    int n = (hist_count < HISTORY_SIZE) ? hist_count : HISTORY_SIZE;
+    for (int i = 0; i < n; i++) {
+        printf("%d  %s\n", i + 1, history[i]);
+    }
+}
+
+char *get_history_command(int index) {
+    if (index <= 0 || index > hist_count)
+        return NULL;
+    return strdup(history[index - 1]);
+}
+
+void free_history(void) {
+    int n = (hist_count < HISTORY_SIZE) ? hist_count : HISTORY_SIZE;
+    for (int i = 0; i < n; i++) {
+        free(history[i]);
+        history[i] = NULL;
+    }
+    hist_count = 0;
+}
 
 /* ------------------------------------------------------------------
    Function: read_cmd
@@ -82,6 +124,7 @@ int handle_builtin(char **args) {
     // exit
     if (strcmp(args[0], "exit") == 0) {
         printf("Exiting shell...\n");
+        free_history();
         exit(0);
     }
 
@@ -104,6 +147,7 @@ int handle_builtin(char **args) {
         printf("  exit       : exit the shell\n");
         printf("  help       : display this help message\n");
         printf("  jobs       : show background jobs (not yet implemented)\n");
+        printf("  history    : show command history\n");
         printf("---------------------------------\n\n");
         return 1;
     }
@@ -111,6 +155,12 @@ int handle_builtin(char **args) {
     // jobs
     else if (strcmp(args[0], "jobs") == 0) {
         printf("Job control not yet implemented.\n");
+        return 1;
+    }
+
+    // history
+    else if (strcmp(args[0], "history") == 0) {
+        print_history();
         return 1;
     }
 
