@@ -1,15 +1,18 @@
 #include "shell.h"
+#include <readline/readline.h>
+#include <readline/history.h>
 
 /* ------------------------------------------------------------------
-   Feature 3: Command History & !n
+   Feature 3 & 4: Command History + Readline Integration
 ------------------------------------------------------------------ */
 static char *history[HISTORY_SIZE];
 static int hist_count = 0;
 
+/* Add command to custom history */
 void add_history_local(const char *line) {
     if (!line || strlen(line) == 0) return;
 
-    // Avoid storing duplicate consecutive commands
+    // Avoid duplicate consecutive entries
     if (hist_count > 0 && strcmp(history[(hist_count - 1) % HISTORY_SIZE], line) == 0)
         return;
 
@@ -24,6 +27,7 @@ void add_history_local(const char *line) {
     hist_count++;
 }
 
+/* Print stored history */
 void print_history(void) {
     int n = (hist_count < HISTORY_SIZE) ? hist_count : HISTORY_SIZE;
     for (int i = 0; i < n; i++) {
@@ -31,12 +35,14 @@ void print_history(void) {
     }
 }
 
+/* Retrieve nth command (1-based) */
 char *get_history_command(int index) {
     if (index <= 0 || index > hist_count)
         return NULL;
     return strdup(history[index - 1]);
 }
 
+/* Free memory at exit */
 void free_history(void) {
     int n = (hist_count < HISTORY_SIZE) ? hist_count : HISTORY_SIZE;
     for (int i = 0; i < n; i++) {
@@ -48,25 +54,25 @@ void free_history(void) {
 
 /* ------------------------------------------------------------------
    Function: read_cmd
-   Purpose : Read a full command line from given input stream
+   Purpose : Read a full command line from stdin using GNU Readline
 ------------------------------------------------------------------ */
 char* read_cmd(char* prompt, FILE* fp) {
-    printf("%s", prompt);
-    char* cmdline = (char*) malloc(sizeof(char) * MAX_LEN);
-    int c, pos = 0;
+    (void)fp; // unused since readline reads from stdin
 
-    while ((c = getc(fp)) != EOF) {
-        if (c == '\n') break;
-        cmdline[pos++] = c;
+    char *cmdline = readline(prompt);
+
+    if (cmdline == NULL) { // Ctrl+D
+        printf("\n");
+        return NULL;
     }
 
-    if (c == EOF && pos == 0) {
-        free(cmdline);
-        return NULL; // Handle Ctrl+D (EOF)
+    // Only add non-empty commands
+    if (strlen(cmdline) > 0) {
+        add_history(cmdline);          // Readline's internal history
+        add_history_local(cmdline);    // Our custom history
     }
 
-    cmdline[pos] = '\0';
-    return cmdline;
+    return cmdline; // malloc'ed by readline
 }
 
 /* ------------------------------------------------------------------
@@ -74,13 +80,12 @@ char* read_cmd(char* prompt, FILE* fp) {
    Purpose : Split command line into tokens (arguments)
 ------------------------------------------------------------------ */
 char** tokenize(char* cmdline) {
-    if (cmdline == NULL || cmdline[0] == '\0' || cmdline[0] == '\n') {
+    if (cmdline == NULL || cmdline[0] == '\0' || cmdline[0] == '\n')
         return NULL;
-    }
 
-    char** arglist = (char**) malloc(sizeof(char*) * (MAXARGS + 1));
+    char** arglist = malloc(sizeof(char*) * (MAXARGS + 1));
     for (int i = 0; i < MAXARGS + 1; i++) {
-        arglist[i] = (char*) malloc(sizeof(char) * ARGLEN);
+        arglist[i] = malloc(sizeof(char) * ARGLEN);
         bzero(arglist[i], ARGLEN);
     }
 
@@ -95,9 +100,9 @@ char** tokenize(char* cmdline) {
 
         start = cp;
         len = 1;
-        while (*++cp != '\0' && !(*cp == ' ' || *cp == '\t')) {
+        while (*++cp != '\0' && !(*cp == ' ' || *cp == '\t'))
             len++;
-        }
+
         strncpy(arglist[argnum], start, len);
         arglist[argnum][len] = '\0';
         argnum++;
@@ -119,7 +124,7 @@ char** tokenize(char* cmdline) {
 ------------------------------------------------------------------ */
 int handle_builtin(char **args) {
     if (args == NULL || args[0] == NULL)
-        return 1; // empty line handled
+        return 1; // Empty line handled
 
     // exit
     if (strcmp(args[0], "exit") == 0) {
@@ -164,6 +169,6 @@ int handle_builtin(char **args) {
         return 1;
     }
 
-    return 0; // not a built-in command
+    return 0; // Not a built-in command
 }
 

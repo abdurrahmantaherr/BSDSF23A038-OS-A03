@@ -6,7 +6,7 @@ int main() {
 
     while ((cmdline = read_cmd(PROMPT, stdin)) != NULL) {
 
-        // Handle !n before anything
+        // Handle !n (re-execution from history)
         if (cmdline[0] == '!') {
             int n = atoi(cmdline + 1);
             char *old_cmd = get_history_command(n);
@@ -16,31 +16,24 @@ int main() {
                 continue;
             }
             printf("%s\n", old_cmd);
+            add_history_local(old_cmd); // Add the re-executed command to history
             free(cmdline);
             cmdline = old_cmd;
         }
 
-        // Add command to history
-        add_history_local(cmdline);
-
         if ((arglist = tokenize(cmdline)) != NULL) {
             if (handle_builtin(arglist)) {
-                // Free memory and skip external execution
-                for (int i = 0; arglist[i] != NULL; i++) {
+                for (int i = 0; arglist[i] != NULL; i++)
                     free(arglist[i]);
-                }
                 free(arglist);
                 free(cmdline);
                 continue;
             }
 
-            // Execute external commands
             execute(arglist);
 
-            // Free memory allocated by tokenize()
-            for (int i = 0; arglist[i] != NULL; i++) {
+            for (int i = 0; arglist[i] != NULL; i++)
                 free(arglist[i]);
-            }
             free(arglist);
         }
         free(cmdline);
