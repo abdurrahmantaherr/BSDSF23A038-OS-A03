@@ -145,17 +145,19 @@ int handle_builtin(char **args) {
 
     // help
     else if (strcmp(args[0], "help") == 0) {
-        printf("\nPUCFIT Custom Shell Help:\n");
-        printf("---------------------------------\n");
-        printf("Built-in commands:\n");
-        printf("  cd <dir>   : change directory\n");
-        printf("  exit       : exit the shell\n");
-        printf("  help       : display this help message\n");
-        printf("  jobs       : show background jobs (not yet implemented)\n");
-        printf("  history    : show command history\n");
-        printf("---------------------------------\n\n");
-        return 1;
-    }
+    printf("\nPUCFIT Custom Shell Help:\n");
+    printf("---------------------------------\n");
+    printf("Built-in commands:\n");
+    printf("  cd <dir>   : change directory\n");
+    printf("  exit       : exit the shell\n");
+    printf("  help       : display this help message\n");
+    printf("  jobs       : show background jobs\n");
+    printf("  fg <job>   : bring a background job to foreground\n");
+    printf("  history    : show command history\n");
+    printf("---------------------------------\n\n");
+    return 1;
+}
+
 
     // jobs
    else if (strcmp(args[0], "jobs") == 0) {
