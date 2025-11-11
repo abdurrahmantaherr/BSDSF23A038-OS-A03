@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <termios.h>
 
 #define MAX_LEN 512
 #define MAXARGS 10
@@ -34,13 +35,14 @@ void free_history(void);
 void add_job(pid_t pid, const char *cmd);
 void check_jobs(void);
 void print_jobs(void);
+void bring_job_foreground(int job_id);   // NEW for fg
 
-// Signal Handling (Feature 7)
+// Signals
 void setup_signal_handlers(void);
 void sigint_handler(int sig);
 void sigtstp_handler(int sig);
 
-// Global variable for foreground process
+// Global foreground PID
 extern pid_t fg_pid;
 
 #endif

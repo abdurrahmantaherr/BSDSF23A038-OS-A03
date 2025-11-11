@@ -169,6 +169,17 @@ int handle_builtin(char **args) {
         print_history();
         return 1;
     }
+    
+    else if (strcmp(args[0], "fg") == 0) {
+    if (args[1] == NULL) {
+        fprintf(stderr, "Usage: fg <job_id>\n");
+    } else {
+        int job_id = atoi(args[1]);
+        bring_job_foreground(job_id);
+    }
+    return 1;
+}
+
 
     return 0; // Not a built-in command
 }
